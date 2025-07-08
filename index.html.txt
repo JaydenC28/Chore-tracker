@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Chhabra Crazy Cool Chore Tracker</title>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-firestore-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #e0f7fa;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      color: #0277bd;
+    }
+    .form-section, .history, .totals {
+      background: #ffffff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      margin-bottom: 20px;
+    }
+    input, select, button {
+      padding: 10px;
+      margin: 5px;
+      font-size: 1rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    table th, table td {
+      padding: 8px;
+      text-align: center;
+      border: 1px solid #ddd;
+    }
+    .chart-container {
+      width: 100%;
+      height: 400px;
+      margin-top: 30px;
+    }
+    .button-red {
+      background-color: #ff5252;
+      color: white;
+    }
+    .button-blue {
+      background-color: #0288d1;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Chhabra Crazy Cool Chore Tracker</h1>
+
+  <div class="form-section">
+    <h2>Record a New Chore</h2>
+    <form id="choreForm">
+      <label for="person">Who did the chore?</label>
+      <select id="person">
+        <option value="Jayden">Jayden</option>
+        <option value="Gia">Gia</option>
+      </select><br><br>
+
+      <label for="chore">What was the chore?</label>
+      <input type="text" id="chore" required placeholder="e.g., Took out trash"><br><br>
+
+      <label for="points">How many points?</label>
+      <input type="number" id="points" required placeholder="e.g., 5"><br><br>
+
+      <button type="submit" class="button-blue">Add Chore</button>
+    </form>
+  </div>
+
+  <div class="history">
+    <h2>Chore History (Latest 15)</h2>
+    <table id="choreHistory">
+      <thead>
+        <tr>
+          <th>Person</th>
+          <th>Chore</th>
+          <th>Points</th>
+          <th>Time</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="totals">
+    <h2>Point Totals</h2>
+    <p>Jayden: <span id="jaydenPoints">0</span> points</p>
+    <p>Gia: <span id="giaPoints">0</span> points</p>
+  </div>
+
+  <div class="chart-container">
+    <canvas id="pointsChart"></canvas>
+  </div>
+
+  <script>
+    // Your Firebase config here
+    const firebaseConfig = {
+      apiKey: "AIzaSyDDTuqEZMropAil3TD_qQLnnZ2ovFyZ_MQ",
+      authDomain: "chore-tracker-c9294.firebaseapp.com",
+      projectId: "chore-tracker-c9294",
+      storageBucket: "chore-tracker-c9294.firebasestorage.app",
+      messagingSenderId: "361037550221",
+      appId: "1:361037550221:web:448f8c552021823f1088c4"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const choresRef = db.collection('chores');
+
+    // Handle form submission
+    document.getElementById('choreForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      const person = document.getElementById('person').value;
+      const chore = document.getElementById('chore').value;
+      const points = parseInt(document.getElementById('points').value);
+
+      choresRef.add({ person, chore, points, time: new Date() });
+
+      document.getElementById('chore').value = '';
+      document.getElementById('points').value = '';
+    });
+
+    // Display chores history
+    choresRef.orderBy('time', 'desc').limit(15).onSnapshot((snapshot) => {
+      const tbody = document.getElementById('choreHistory').getElementsByTagName('tbody')[0];
+      tbody.innerHTML = '';
+
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const row = tbody.insertRow();
+        row.innerHTML = `
+          <td>${data.person}</td>
+          <td>${data.chore}</td>
+          <td>${data.points}</td>
+          <td>${data.time.toDate().toLocaleString()}</td>
+          <td><button class="button-red" onclick="deleteChore('${doc.id}')">Delete</button></td>
+        `;
+      });
+    });
+
+    // Delete chore
+    function deleteChore(id) {
+      choresRef.doc(id).delete();
+    }
+
+  const pointsChart = new Chart(document.getElementById('pointsChart'), {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [
+      {
+        label: 'Jayden',
+        data: [],
+        borderColor: 'blue',
+        fill: false
+      },
+      {
+        label: 'Gia',
+        data: [],
+        borderColor: 'pink',
+        fill: false
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    scales: {
+      x: {
+        title: {
+          display: true,
+          text: 'Date'
+        }
+      },
+      y: {
+        beginAtZero: true,
+        title: {
+          display: true,
+          text: 'Total Points'
+        }
+      }
+    }
+  }
+});
+
+choresRef.orderBy('time').onSnapshot((snapshot) => {
+  const jaydenPointsByDate = {};
+  const giaPointsByDate = {};
+
+  snapshot.forEach(doc => {
+    const data = doc.data();
+    const date = data.time.toDate().toISOString().split('T')[0]; // yyyy-mm-dd
+
+    if (data.person === 'Jayden') {
+      jaydenPointsByDate[date] = (jaydenPointsByDate[date] || 0) + data.points;
+    } else if (data.person === 'Gia') {
+      giaPointsByDate[date] = (giaPointsByDate[date] || 0) + data.points;
+    }
+  });
+
+  const allDates = Array.from(new Set([
+    ...Object.keys(jaydenPointsByDate),
+    ...Object.keys(giaPointsByDate)
+  ])).sort();
+
+  let cumulativeJayden = 0;
+  let cumulativeGia = 0;
+  const jaydenData = [];
+  const giaData = [];
+
+  allDates.forEach(date => {
+    cumulativeJayden += jaydenPointsByDate[date] || 0;
+    cumulativeGia += giaPointsByDate[date] || 0;
+
+    jaydenData.push(cumulativeJayden);
+    giaData.push(cumulativeGia);
+  });
+
+  pointsChart.data.labels = allDates;
+  pointsChart.data.datasets[0].data = jaydenData;
+  pointsChart.data.datasets[1].data = giaData;
+  pointsChart.update();
+
+  document.getElementById('jaydenPoints').textContent = cumulativeJayden;
+  document.getElementById('giaPoints').textContent = cumulativeGia;
+});
+  </script>
+
+</body>
+</html>
